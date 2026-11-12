@@ -1,6 +1,3 @@
-# Bandas-contemporaneas
-Guitar Hero Style
-
 # Tacto · el teléfono como control remoto de una experiencia web
 
 Tacto convierte el teléfono (iPhone o Android, solo con el navegador, sin instalar nada) en un **control remoto táctil** para una experiencia web con audio e imagen. El teléfono mide qué hace tu mano: dónde toca, con cuántos dedos, con qué presión y diámetro, y cómo gira el aparato. Esos datos viajan por **MQTT** hasta una página en el computador, donde un **panel de conexiones** los enlaza con variables de sonido e imagen.
