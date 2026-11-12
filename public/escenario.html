@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tacto · escenario</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  html, body { overflow: hidden; }
+  #tarima { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  .hud { position: fixed; z-index: 2; background: rgba(10,7,16,.72); border: 1px solid var(--line); border-radius: var(--r-l); backdrop-filter: blur(6px); transition: opacity 300ms; }
+  #top { left: 16px; top: 16px; padding: 8px 14px; display: flex; gap: 14px; align-items: center; border-radius: 999px; }
+  #top b { letter-spacing: .1em; } #top b span { color: var(--neo); }
+  #salaTxt { font: 600 13px var(--mono); color: var(--neo); }
+  #join { right: 16px; bottom: 16px; padding: 12px; display: flex; gap: 12px; align-items: center; max-width: 440px; }
+  #qr { width: 168px; height: 168px; background: #fff; border-radius: var(--r-s); padding: 6px; flex: none; }
+  #join p { margin: 0 0 6px; font-weight: 700; font-size: 15px; }
+  #join code { display: block; color: var(--neo); word-break: break-all; font: 12px var(--mono); user-select: all; }
+  #join small { color: var(--mut); display: block; margin-top: 8px; }
+  #panel { right: 16px; top: 16px; padding: 12px; width: 300px; }
+  #seats { display: grid; gap: 6px; margin-bottom: 10px; }
+  .seat { display: grid; grid-template-columns: 10px 64px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+  .seat select { min-height: 26px; padding: 2px 6px; font-size: 12px; min-width: 0; }
+  .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  #audioBtn.primary { animation: brillo 1.6s ease-in-out infinite; } @keyframes brillo { 50% { box-shadow: 0 0 0 4px rgba(230,255,61,.25); } }
+  .seat i { width: 10px; height: 10px; border-radius: 50%; }
+  .seat .who { color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .seat .who b { color: var(--fg); font-weight: 600; }
+  .seat button { padding: 2px 8px; min-height: 26px; font-size: 12px; }
+  #panel .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  #panel .row button { font-size: 12px; padding: 4px 10px; }
+  #pubTxt { color: var(--mut); font-size: 13px; margin-bottom: 4px; }
+  #calib { color: var(--mut); font: 11px var(--mono); margin-bottom: 10px; }
+  #keys { color: var(--mut); font-size: 11px; margin-top: 10px; }
+  kbd { font: 10px var(--mono); padding: 1px 5px; border: 1px solid currentColor; border-radius: 4px; }
+  #feed { position: fixed; z-index: 2; left: 50%; top: 16px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; pointer-events: none; }
+  #feed div { background: rgba(10,7,16,.78); border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 14px; font-size: 14px; font-weight: 600; animation: feed 4.5s forwards; white-space: nowrap; }
+  @keyframes feed { 0% { opacity: 0; transform: translateY(-6px); } 8%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+  body.idle { cursor: none; } body.idle #top, body.idle #panel { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="tarima" aria-label="Tarima con la banda y el público" role="img"></canvas>
+
+<div id="top" class="hud"><b>TACTO <span>· banda en vivo</span></b><span id="estado" class="dot" role="status" aria-live="polite">● sin conexión</span><span>sala <span id="salaTxt">…</span></span></div>
+<div id="feed" aria-live="polite"></div>
+
+<div id="panel" class="hud" aria-label="Banda">
+  <h2>Sonido</h2>
+  <div class="row" style="margin-bottom:12px">
+    <button id="audioBtn" class="primary">Activar sonido</button>
+    <label class="chk"><input type="checkbox" id="baseChk"> Base rítmica (100 bpm)</label>
+  </div>
+  <h2>Canción</h2>
+  <div class="row" style="margin-bottom:6px">
+    <select id="canSel" aria-label="Canción"><option value="">(sin canción)</option></select>
+    <button id="canPlay" disabled>▶ Reproducir</button>
+  </div>
+  <div class="row" style="margin-bottom:12px">
+    <label class="chk">Escuchar <select id="canEsc" aria-label="Qué pistas escuchar"><option value="todo">toda la banda</option><option value="guitarra">solo guitarra</option><option value="bajo">solo bajo</option><option value="bateria">solo batería</option><option value="teclado">solo teclado</option><option value="fondo">solo voz y resto</option></select></label>
+    <label class="chk" title="Si un instrumento tiene músico, su pista solo suena mientras toca"><input type="checkbox" id="canBanda" checked> La banda controla su pista</label>
+  </div>
+  <div id="canTxt" style="color:var(--mut);font-size:12px;margin:-6px 0 12px"></div>
+  <h2>Banda</h2>
+  <div id="seats"></div>
+  <div id="pubTxt">Público: 0</div>
+  <div id="calib" title="Para calibrar la fuerza del lanzamiento con teléfonos reales">Último lanzamiento: –</div>
+  <div class="row">
+    <button id="reset" title="Vuelve a repartir los instrumentos por orden de llegada">Reiniciar roles</button>
+    <button id="nueva" title="Crea otra sala (todos deben volver a escanear)">Nueva sala</button>
+    <button id="fs">Pantalla completa</button>
+  </div>
+  <div id="keys"><kbd>F</kbd> pantalla completa · <kbd>Q</kbd> mostrar/ocultar QR · <kbd>B</kbd> este panel</div>
+</div>
+
+<div id="join" class="hud">
+  <img id="qr" alt="QR para entrar desde el teléfono" hidden>
+  <div><p>Súbete a la tarima</p><div>Escanea o abre en el teléfono:</div><code id="url">…</code>
+  <small>Los 4 primeros tocan. El resto es público: rosas y tomates.</small></div>
+</div>
+
+<script src="config.js"></script>
+<script src="tacto.js"></script>
+<script src="banda-comun.js"></script>
+<script src="banda-audio.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const { INSTRUMENTOS, INFO, COOLDOWN, GRACIA, ORIGEN, proyectar, objetivo, dibujarTomate, dibujarRosa, clamp } = Banda;
+
+// ============================ ESTADO (el escenario es el árbitro) ============================
+const sala = Tacto.sala(), TOP = Banda.temas(sala);
+$('#salaTxt').textContent = sala;
+let client = null, ready = false, seq = 0;
+const devs = {};                                               // id -> { id, name, online, seq, lastThrow }
+const seats = Object.fromEntries(INSTRUMENTOS.map(k => [k, null])); // instrumento -> id del teléfono
+const gracia = {};                                             // instrumento -> temporizador
+const st = Object.fromEntries(INSTRUMENTOS.map(k => [k, { quien: null, pulso: 0, manchas: [], brillo: 0, rosas: 0, tomates: 0, notas: [] }]));
+
+const ARTICULO = { guitarra: 'la', bajo: 'el', bateria: 'la', teclado: 'el' };
+const rolDe = id => INSTRUMENTOS.find(k => seats[k] === id) || null;
+const publico = () => Object.values(devs).filter(d => d.online && !rolDe(d.id)).sort((a, b) => a.seq - b.seq);
+
+function publicarRoles() {
+  for (const k of INSTRUMENTOS) if (st[k].quien !== seats[k]) Object.assign(st[k], { quien: seats[k], rosas: 0, tomates: 0, manchas: [], brillo: 0 }); // cambia el músico: contadores en cero
+  if (client && client.connected) {
+    const roles = Object.fromEntries(INSTRUMENTOS.map(k => { const d = devs[seats[k]]; return [k, seats[k] ? { id: seats[k], name: d ? d.name : '', online: !!(d && d.online) } : null]; }));
+    client.publish(TOP.roles, JSON.stringify({ t: Date.now(), roles, publico: publico().map(d => d.id) }), { qos: 1, retain: true });
+  }
+  renderPanel();
+}
+function asignar() { // llena los instrumentos libres con el público, por orden de llegada
+  if (!ready) return;
+  const fila = publico();
+  for (const k of INSTRUMENTOS) if (!seats[k] && fila.length) { const d = fila.shift(); seats[k] = d.id; feed(`${d.name} toma ${ARTICULO[k]} ${INFO[k].nombre.toLowerCase()}`, INFO[k].color); }
+  publicarRoles();
+}
+function iniciarGracia(k) {
+  if (gracia[k]) return;
+  gracia[k] = setTimeout(() => { gracia[k] = null; const id = seats[k]; if (id && !(devs[id] && devs[id].online)) { seats[k] = null; asignar(); } }, GRACIA);
+}
+function liberar(k) { // el anfitrión manda a un músico al público (queda al final de la fila)
+  const id = seats[k]; if (!id) return;
+  clearTimeout(gracia[k]); gracia[k] = null; seats[k] = null;
+  if (devs[id]) devs[id].seq = ++seq;
+  asignar();
+}
+function ponerEn(k, id) { // el anfitrión elige quién toca k (si esa persona tenía otro instrumento, ese queda libre)
+  if (!id) return liberar(k);
+  for (const j of INSTRUMENTOS) if (seats[j] === id) { seats[j] = null; clearTimeout(gracia[j]); gracia[j] = null; }
+  const antes = seats[k]; if (antes && devs[antes]) devs[antes].seq = ++seq;
+  clearTimeout(gracia[k]); gracia[k] = null; seats[k] = id;
+  publicarRoles(); // no rellena los lugares que quedaron libres: el anfitrión está armando la banda a mano
+}
+function reiniciar() { for (const k of INSTRUMENTOS) { clearTimeout(gracia[k]); gracia[k] = null; seats[k] = null; } asignar(); }
+
+// ============================ MENSAJES ============================
+function onStatus(id, m) {
+  if (m.app !== 'banda') return; // otros teléfonos de Tacto (index.html) en la misma sala no cuentan
+  const nuevo = !devs[id], d = (devs[id] ||= { id, name: id, online: false, seq: ++seq, lastThrow: -1e9 });
+  const antes = d.online, nombre = String(m.name || id).slice(0, 24), cambio = nuevo || nombre !== d.name || !!m.online !== antes;
+  d.name = nombre; d.online = !!m.online;
+  const k = rolDe(id);
+  if (d.online && k) { clearTimeout(gracia[k]); gracia[k] = null; }
+  if (!d.online && k && ready) iniciarGracia(k);
+  if (ready && d.online && !antes && !k) feed(`${d.name} llegó`, '#9a93ae');
+  if (cambio) asignar(); // los latidos repetidos no republican los roles
+}
+function vivo(id) { // cualquier mensaje de un teléfono prueba que está conectado
+  const d = devs[id]; if (!d || d.online) return;
+  d.online = true; const k = rolDe(id); if (k) { clearTimeout(gracia[k]); gracia[k] = null; } asignar();
+}
+function onLanzar(id, m) {
+  const d = devs[id]; if (!d || !d.online || rolDe(id)) return;     // solo el público lanza
+  const now = performance.now(); if (now - d.lastThrow < COOLDOWN - 600) return; // respeta la espera (con margen por la red)
+  if (m.tipo !== 'rosa' && m.tipo !== 'tomate') return;
+  d.lastThrow = now;
+  const x = clamp(+m.x || 0.5), y = clamp(+m.y || 0.5), f = clamp(+m.f || 0.5), o = ORIGEN[m.tipo];
+  const ox = clamp(o.x + (Math.random() - 0.5) * 0.14);
+  const blanco = objetivo(x, y);
+  $('#calib').textContent = `Último lanzamiento: ${d.name} · ${m.tipo} · ${m.v != null ? (+m.v).toFixed(2) + ' px/ms' : '–'} · fuerza ${f.toFixed(2)} · ${blanco && seats[blanco] ? INFO[blanco].nombre : 'piso'}`;
+  console.log('[lanzar]', d.name, m.tipo, 'v', m.v, 'f', f, 'x', x, 'y', y, '→', blanco || 'piso');
+  const q = { tipo: m.tipo, de: d, o: { x: ox, y: o.y }, x, y, f, t0: now, dur: 750 + Math.hypot(x - ox, y - o.y) * 500, rot: Math.random() * 6, giro: (Math.random() - 0.5) * 14 };
+  proyectiles.push(q);
+  // el impacto va por temporizador (no por el dibujo): así ocurre aunque la pestaña no esté visible
+  setTimeout(() => { const i = proyectiles.indexOf(q); if (i >= 0) proyectiles.splice(i, 1); impacto(q, performance.now()); }, q.dur);
+}
+function onGolpe(id, m) {
+  const k = rolDe(id); if (!k) return;
+  const s = st[k], r = m.r;
+  if (CAN.partitura && CAN.sonando && r) { // con partitura: el teléfono ya juzgó si acertó
+    s.intentos = (s.intentos || 0) + 1;
+    if (r === 'perfecto' || r === 'bien') {
+      CAN.acierto(k); s.aciertos = (s.aciertos || 0) + 1; s.racha = +m.racha || 0;
+      flotar(k, r === 'perfecto' ? '¡Perfecto!' : 'Bien', r === 'perfecto' ? '#e6ff3d' : '#ece8f5');
+    } else { // 'falla': tocó donde no había nota (suena la nota falsa) · 'perdida': no tocó una nota (su pista se calla)
+      CAN.error(k, r === 'falla'); s.racha = 0; s.falla = 1;
+      flotar(k, r === 'falla' ? '✗ nota falsa' : '✗ se perdió', '#ff6b6b');
+      return;
+    }
+  } else BandaAudio.tocar(k, (+m.z || 0) & 3);
+  s.pulso = 1;
+  st[k].notas.push({ t0: performance.now(), dx: (Math.random() - 0.5) * 0.6, z: +m.z || 0 });
+  if (st[k].notas.length > 12) st[k].notas.shift();
+}
+function onMessage(topic, payload) {
+  const [, s, a, b] = topic.split('/'); if (s !== sala || !a || !b) return;
+  let m; try { m = JSON.parse(payload.toString()); } catch { return; }
+  if (a === 'escenario') { // al recargar, retoma los roles que había
+    if (b === 'roles' && !ready && m.roles) for (const k of INSTRUMENTOS) { const r = m.roles[k]; if (r && r.id) { seats[k] = r.id; devs[r.id] ||= { id: r.id, name: r.name || r.id, online: false, seq: ++seq, lastThrow: -1e9 }; } }
+    return;
+  }
+  if (b === 'status') onStatus(a, m);
+  else if (b === 'lanzar') { vivo(a); onLanzar(a, m); }
+  else if (b === 'golpe') { vivo(a); onGolpe(a, m); }
+  else if (b === 'sync') pub(TOP.dev(a, 'reloj'), { a: m.a, b: Date.now() }); // el teléfono ajusta su reloj al de la pantalla
+  else if (b === 'expresion') { // movimiento del teléfono del músico (grados desde su posición inicial)
+    const k = rolDe(a); if (!k) return;
+    const eb = clamp((+m.b || 0) / 45, -1, 1), eg = clamp((+m.g || 0) / 45, -1, 1);
+    st[k].eb = eb; st[k].eg = eg; BandaAudio.expresion(k, eb, eg);
+  }
+}
+
+async function conectar() {
+  const o = await Tacto.open({ clientId: 'esc-' + Tacto.rand(8), preferLocal: true });
+  client = o.client;
+  const est = (txt, cls) => { $('#estado').textContent = '● ' + txt; $('#estado').className = 'dot ' + cls; };
+  client.on('connect', () => {
+    est('conectado', 'on');
+    client.subscribe(TOP.todo, { qos: 1 });
+    if (!ready) setTimeout(() => { // espera los mensajes retenidos (roles y teléfonos) antes de repartir
+      ready = true;
+      for (const k of INSTRUMENTOS) if (seats[k] && !(devs[seats[k]] && devs[seats[k]].online)) iniciarGracia(k);
+      asignar();
+    }, 1200);
+    else publicarRoles();
+    publicarShow();
+  });
+  client.on('reconnect', () => est('reconectando', 'warn'));
+  client.on('offline', () => est('sin conexión', 'warn'));
+  client.on('error', e => est(e.message || 'error', 'warn'));
+  client.on('message', onMessage);
+  updateJoin(o.broker);
+}
+
+// ============================ PANEL, QR, AVISOS ============================
+function renderPanel() {
+  BandaAudio.bateriaHumana = !!(seats.bateria && devs[seats.bateria] && devs[seats.bateria].online); // con baterista, la base no toca batería
+  const conectados = Object.values(devs).filter(d => d.online).sort((a, b) => a.seq - b.seq);
+  $('#seats').innerHTML = INSTRUMENTOS.map(k => {
+    const id = seats[k], d = devs[id];
+    // selector: el anfitrión puede poner a cualquiera en cualquier instrumento (útil para probar con un solo teléfono)
+    const ops = ['<option value="">libre</option>', ...(id && !(d && d.online) ? [`<option value="${id}" selected>${esc(d ? d.name : id)} (reconectando)</option>`] : []),
+      ...conectados.map(x => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)}</option>`)].join('');
+    return `<div class="seat"><i style="background:${INFO[k].color}"></i><span>${INFO[k].nombre}</span><select data-k="${k}" aria-label="Quién toca ${INFO[k].nombre}">${ops}</select>${id ? `<button data-k="${k}" title="Mandar al público">Liberar</button>` : '<span></span>'}</div>`;
+  }).join('');
+  for (const b of document.querySelectorAll('.seat button')) b.onclick = () => liberar(b.dataset.k);
+  for (const s of document.querySelectorAll('.seat select')) s.onchange = () => ponerEn(s.dataset.k, s.value);
+  $('#pubTxt').textContent = `Público: ${publico().length}`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function feed(txt, color) {
+  const el = document.createElement('div'); el.textContent = txt; el.style.borderColor = color || 'var(--line-2)';
+  $('#feed').prepend(el); setTimeout(() => el.remove(), 4600);
+  while ($('#feed').children.length > 4) $('#feed').lastChild.remove();
+}
+async function updateJoin(broker) {
+  const CFG = window.TACTO_CONFIG || {}; let base = null, local = false;
+  try { const i = await (await fetch('info', { cache: 'no-store' })).json(); if (i.baseUrl) { base = i.baseUrl + '/'; local = true; } } catch {}
+  if (!base) base = CFG.phoneUrl || new URL('./', location.href).href;
+  let u = base + 'banda.html?sala=' + sala;
+  if (!local && broker) u += '&broker=' + encodeURIComponent(broker); // publicado: el teléfono debe usar el mismo broker
+  $('#url').textContent = u;
+  if (local) { $('#qr').src = 'qr.svg?u=' + encodeURIComponent(u); $('#qr').hidden = false; return; }
+  try {
+    if (!window.qrcode) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    const q = window.qrcode(0, 'M'); q.addData(u); q.make(); $('#qr').src = q.createDataURL(6, 4); $('#qr').hidden = false;
+  } catch { $('#qr').hidden = true; }
+}
+// sonido: los navegadores exigen un clic o una tecla antes de sonar
+function activarSonido() { BandaAudio.init(); $('#audioBtn').textContent = 'Sonido activo'; $('#audioBtn').classList.remove('primary'); }
+$('#audioBtn').onclick = activarSonido;
+addEventListener('pointerdown', activarSonido, { once: true });
+addEventListener('keydown', activarSonido, { once: true });
+$('#baseChk').onchange = e => { activarSonido(); BandaAudio.setBase(e.target.checked); };
+
+// canción separada por instrumento (la prepara herramientas/preparar.py en public/canciones/)
+const CAN = BandaAudio.cancion;
+(async () => {
+  try {
+    const lista = await (await fetch('canciones/lista.json', { cache: 'no-store' })).json();
+    for (const c of lista) $('#canSel').insertAdjacentHTML('beforeend', `<option value="${esc(c.nombre)}">${esc(c.titulo)}</option>`);
+    if (lista.length === 1) { $('#canSel').value = lista[0].nombre; }
+  } catch { $('#canTxt').textContent = 'No hay canciones preparadas (herramientas/preparar.py).'; }
+})();
+async function cargarSeleccion() {
+  const n = $('#canSel').value; if (!n) return false;
+  if (CAN.partitura && CAN.partitura.nombre === n) return true;
+  activarSonido(); $('#canPlay').disabled = true;
+  try {
+    const p = await CAN.cargar(`canciones/${n}/`, (x, k) => { $('#canTxt').textContent = `Cargando pistas… ${Math.round(x * 100)}% (${k})`; });
+    COORD = Banda.coordinacion(p);
+    $('#canTxt').textContent = `${p.titulo} · ${Math.round(p.bpm)} bpm · ${p.tonalidad.nombre} · ${Math.floor(p.duracion / 60)}:${String(Math.round(p.duracion % 60)).padStart(2, '0')} · ${COORD.filter(e => e.tipo === 'gesto').length} gestos`;
+    publicarShow();
+    return true;
+  } catch (e) { $('#canTxt').textContent = 'No pude cargar la canción: ' + (e.message || e); return false; }
+  finally { $('#canPlay').disabled = false; }
+}
+$('#canSel').onchange = () => { CAN.pausa(); cargarSeleccion(); };
+$('#canPlay').onclick = async () => {
+  if (CAN.sonando) { CAN.pausa(); $('#canPlay').textContent = '▶ Reproducir'; publicarShow(); return; }
+  if (!(await cargarSeleccion())) return;
+  $('#baseChk').checked = false;
+  const desde = CAN.tiempo >= CAN.partitura.duracion - 1 ? 0 : CAN.tiempo;
+  for (const e of COORD) if (e.t > desde) { e.ok = null; e.listo = false; } // los gestos que vienen se vuelven a medir
+  for (const k of INSTRUMENTOS) Object.assign(st[k], { racha: 0, aciertos: 0, intentos: 0 });
+  CAN.reproducir(desde, desde < 1 ? 4 : 1.5); // cuenta regresiva para que la banda se prepare
+  $('#canPlay').textContent = '⏸ Pausa'; publicarShow();
+};
+let COORD = [];
+// el estado de la canción viaja retenido a los teléfonos (con eso calculan dónde va su partitura)
+function publicarShow() {
+  if (!client || !client.connected) return;
+  const p = CAN.partitura;
+  client.publish(TOP.show, JSON.stringify({ cancion: p ? p.nombre : null, sonando: CAN.sonando, inicio: Math.round(Date.now() - CAN.tiempoAudible * 1000), pos: +CAN.tiempo.toFixed(3), t: Date.now() }), { qos: 1, retain: true });
+}
+setInterval(() => CAN.sonando && publicarShow(), 3000); // corrige la deriva entre relojes
+$('#canEsc').onchange = e => { CAN.escuchar = e.target.value; };
+$('#canBanda').onchange = e => { CAN.banda = e.target.checked; };
+setInterval(() => { if (!CAN.sonando && $('#canPlay').textContent.startsWith('⏸')) { $('#canPlay').textContent = '▶ Reproducir'; publicarShow(); } }, 500);
+$('#canSel').addEventListener('change', () => { $('#canPlay').disabled = !$('#canSel').value; });
+setTimeout(() => { $('#canPlay').disabled = !$('#canSel').value; }, 800);
+$('#reset').onclick =() => { if (confirm('¿Repartir de nuevo los instrumentos por orden de llegada?')) reiniciar(); };
+$('#nueva').onclick = () => { if (confirm('Se crea otra sala y todos deben volver a escanear el QR. ¿Continuar?')) location.search = '?sala=' + Tacto.nuevaSala(); };
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+const toggleFs = () => { const p = fsEl() ? (document.exitFullscreen || document.webkitExitFullscreen).call(document) : (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen).call(document.documentElement); if (p && p.catch) p.catch(() => {}); };
+$('#fs').onclick = toggleFs;
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'f') toggleFs(); else if (k === 'q') $('#join').hidden = !$('#join').hidden; else if (k === 'b') $('#panel').hidden = !$('#panel').hidden;
+});
+let idleT; addEventListener('pointermove', () => { document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => fsEl() && document.body.classList.add('idle'), 2500); });
+
+// ============================ DIBUJO DE LA TARIMA ============================
+const cv = $('#tarima'), c = cv.getContext('2d');
+let W = 0, H = 0, R = null;
+function fit() {
+  const d = devicePixelRatio || 1; W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * d); cv.height = Math.round(H * d); c.setTransform(d, 0, 0, d, 0, 0);
+  R = { cx: W / 2, top: H * 0.3, w: Math.min(W * 0.9, H * 1.9), h: H * 0.46 };
+}
+addEventListener('resize', fit); fit();
+const P = (x, y) => proyectar(x, y, R);
+const proyectiles = [], marcas = [], petalos = [];
+const rnd = s => () => ((s = (s * 16807) % 2147483647) / 2147483647); // azar repetible (manchas)
+
+function fondo(t) {
+  const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#07050c'); g.addColorStop(0.55, '#140b22'); g.addColorStop(1, '#05030a');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // telón del fondo
+  const a = P(0, 0), b = P(1, 0);
+  for (let i = 0; i < 28; i++) { const x = a.x + ((b.x - a.x) * i) / 27; c.fillStyle = i % 2 ? 'rgba(80,20,60,.16)' : 'rgba(40,10,40,.22)'; c.fillRect(x - (b.x - a.x) / 54, H * 0.05, (b.x - a.x) / 27, a.y - H * 0.05); }
+  // estructura de luces
+  const ty = H * 0.07; c.strokeStyle = '#2b2338'; c.lineWidth = 3; c.beginPath(); c.moveTo(a.x - 30, ty); c.lineTo(b.x + 30, ty); c.moveTo(a.x - 30, ty + 10); c.lineTo(b.x + 30, ty + 10); c.stroke();
+  c.lineWidth = 1; c.beginPath(); for (let x = a.x - 30; x < b.x + 30; x += 14) { c.moveTo(x, ty); c.lineTo(x + 7, ty + 10); c.lineTo(x + 14, ty); } c.stroke();
+}
+function piso() {
+  const p00 = P(0, 0), p10 = P(1, 0), p11 = P(1, 1), p01 = P(0, 1);
+  const g = c.createLinearGradient(0, p00.y, 0, p01.y); g.addColorStop(0, '#1c130d'); g.addColorStop(1, '#3a281a');
+  c.fillStyle = g; c.beginPath(); c.moveTo(p00.x, p00.y); c.lineTo(p10.x, p10.y); c.lineTo(p11.x, p11.y); c.lineTo(p01.x, p01.y); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 1; c.beginPath();
+  for (let i = 1; i < 16; i++) { const u = P(i / 16, 0), v = P(i / 16, 1); c.moveTo(u.x, u.y); c.lineTo(v.x, v.y); } c.stroke();
+  c.fillStyle = '#120b07'; c.fillRect(p01.x, p01.y, p11.x - p01.x, H * 0.035); // borde delantero
+  c.fillStyle = 'rgba(230,255,61,.25)'; c.fillRect(p01.x, p01.y, p11.x - p01.x, 2);
+  // tarima de la batería y amplificadores
+  caja(0.36, 0.64, 0.18, 0.46, H * 0.035, '#241a2e', '#170f1e');
+  for (const [x, y] of [[0.14, 0.3], [0.2, 0.3]]) { const p = P(x, y), w = H * 0.07 * p.s, h = H * 0.13 * p.s; c.fillStyle = '#100c14'; c.fillRect(p.x - w / 2, p.y - h, w, h); c.strokeStyle = '#2b2338'; c.strokeRect(p.x - w / 2 + 3, p.y - h + 3, w - 6, h * 0.62); c.fillStyle = '#3a3050'; c.fillRect(p.x - w / 2 + 3, p.y - h * 0.3, w - 6, 3); }
+}
+function caja(x0, x1, y0, y1, alto, arriba, frente) {
+  const a = P(x0, y0), b = P(x1, y0), cc = P(x1, y1), d = P(x0, y1);
+  c.fillStyle = frente; c.fillRect(d.x, d.y - alto, cc.x - d.x, alto);
+  c.fillStyle = arriba; c.beginPath(); c.moveTo(a.x, a.y - alto); c.lineTo(b.x, b.y - alto); c.lineTo(cc.x, cc.y - alto); c.lineTo(d.x, d.y - alto); c.closePath(); c.fill();
+}
+const alzado = k => (k === 'bateria' ? H * 0.035 : 0);
+
+function luces(t) {
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (const k of INSTRUMENTOS) {
+    const s = st[k], on = !!seats[k], p = P(INFO[k].x, INFO[k].y), fy = p.y - alzado(k);
+    const a = (on ? 0.1 : 0.03) + s.pulso * 0.22 + s.brillo * 0.15 + (s.ener || 0) * 0.3, w = H * 0.12 * p.s;
+    const g = c.createLinearGradient(0, H * 0.07, 0, fy); g.addColorStop(0, hex(INFO[k].color, a * 1.6)); g.addColorStop(1, hex(INFO[k].color, a));
+    c.fillStyle = g; c.beginPath(); c.moveTo(p.x - 8, H * 0.075); c.lineTo(p.x + 8, H * 0.075); c.lineTo(p.x + w, fy); c.lineTo(p.x - w, fy); c.closePath(); c.fill();
+    const rg = c.createRadialGradient(p.x, fy, 0, p.x, fy, w * 1.3); rg.addColorStop(0, hex(INFO[k].color, a * 2)); rg.addColorStop(1, hex(INFO[k].color, 0));
+    c.fillStyle = rg; c.beginPath(); c.ellipse(p.x, fy, w * 1.3, w * 0.38, 0, 0, 7); c.fill();
+    if (s.falla > 0.03) { // falló: la luz se pone roja
+      c.fillStyle = `rgba(255,50,50,${s.falla * 0.4})`; c.beginPath(); c.moveTo(p.x - 8, H * 0.075); c.lineTo(p.x + 8, H * 0.075); c.lineTo(p.x + w, fy); c.lineTo(p.x - w, fy); c.closePath(); c.fill();
+    }
+    c.fillStyle = hex(INFO[k].color, on ? 0.9 : 0.3); c.beginPath(); c.arc(p.x, H * 0.075, 6, 0, 7); c.fill(); // foco
+  }
+  c.restore();
+}
+function armonia() { // acordes de la base y pulso, sobre el telón
+  const e = BandaAudio.estado();
+  if (!e.activo) { c.fillStyle = 'rgba(230,255,61,.8)'; c.font = '600 15px system-ui'; c.textAlign = 'center'; c.fillText('Haz clic en la pantalla para activar el sonido', W / 2, H * 0.17); return; }
+  const p = CAN.partitura;
+  if (p) { // título y avance de la canción
+    const tt = CAN.tiempo, w = Math.min(W * 0.4, 420), x = W / 2 - w / 2, y = H * 0.155, mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    c.textAlign = 'center'; c.fillStyle = '#ece8f5'; c.font = `700 ${Math.round(H * 0.03)}px system-ui`; c.fillText(p.titulo, W / 2, y);
+    c.fillStyle = 'rgba(236,232,245,.15)'; c.fillRect(x, y + 10, w, 4); c.fillStyle = '#e6ff3d'; c.fillRect(x, y + 10, w * Math.min(1, tt / p.duracion), 4);
+    c.font = '12px ui-monospace, monospace'; c.fillStyle = 'rgba(236,232,245,.6)'; c.fillText(`${mmss(tt)} / ${mmss(p.duracion)}${CAN.sonando ? '' : ' · en pausa'}`, W / 2, y + 30);
+    return;
+  }
+  if (!e.base) return;
+  const fs =Math.round(H * 0.035), y = H * 0.16, paso = fs * 2.6, x0 = W / 2 - paso * 1.5;
+  c.textAlign = 'center';
+  e.prog.forEach((n, i) => {
+    const on = i === e.idx; c.font = `${on ? 800 : 600} ${on ? Math.round(fs * 1.25) : fs}px system-ui`;
+    c.fillStyle = on ? '#e6ff3d' : 'rgba(236,232,245,.35)'; c.fillText(n, x0 + i * paso, y);
+  });
+  const b = Math.floor(e.pulso);
+  for (let i = 0; i < 4; i++) { c.fillStyle = i === b ? '#e6ff3d' : 'rgba(236,232,245,.25)'; c.beginPath(); c.arc(W / 2 + (i - 1.5) * fs * 0.8, y + fs * 0.7, i === b ? 5 : 3.5, 0, 7); c.fill(); }
+}
+// ---------- textos de coordinación, gestos y respuesta a cada nota ----------
+const flotantes = [];
+function flotar(k, txt, color) { flotantes.push({ k, txt, color, t0: performance.now() }); if (flotantes.length > 24) flotantes.shift(); }
+function dibujarFlotantes(now) {
+  for (let i = flotantes.length - 1; i >= 0; i--) {
+    const f = flotantes[i], u = (now - f.t0) / 900; if (u >= 1) { flotantes.splice(i, 1); continue; }
+    const p = P(INFO[f.k].x, INFO[f.k].y), h = H * 0.24 * p.s;
+    c.globalAlpha = 1 - u; c.fillStyle = f.color; c.font = `800 ${Math.round(H * 0.026 * p.s + 6)}px system-ui`; c.textAlign = 'center';
+    c.fillText(f.txt, p.x, p.y - alzado(f.k) - h * (1.05 + u * 0.35)); c.globalAlpha = 1;
+  }
+}
+function letrero(txt, color, sub, escala = 1) { // texto grande en el centro de la tarima
+  let fs = Math.round(H * 0.06 * escala); const y = H * 0.44;
+  c.font = `900 ${fs}px system-ui`; c.textAlign = 'center';
+  const ancho = c.measureText(txt).width; if (ancho > W * 0.8) { fs = Math.floor((fs * W * 0.8) / ancho); c.font = `900 ${fs}px system-ui`; } // que quepa
+  const w = Math.max(c.measureText(txt).width, sub ? c.measureText(sub).width * 0.45 : 0) + fs * 1.4;
+  c.fillStyle = 'rgba(10,7,16,.78)'; c.strokeStyle = color; c.lineWidth = 2;
+  c.beginPath(); c.roundRect(W / 2 - w / 2, y - fs * 1.05, w, fs * (sub ? 2.05 : 1.5), fs * 0.4); c.fill(); c.stroke();
+  c.fillStyle = color; c.fillText(txt, W / 2, y);
+  if (sub) { c.font = `600 ${Math.round(fs * 0.42)}px system-ui`; c.fillStyle = '#ece8f5'; c.fillText(sub, W / 2, y + fs * 0.7); }
+}
+function avisos() {
+  if (!CAN.partitura) return;
+  const now = CAN.tiempoAudible;
+  if (CAN.sonando && now < 0) { letrero(String(Math.ceil(-now)), '#e6ff3d', 'la banda empieza en…', 1.6); return; }
+  const ocup = INSTRUMENTOS.filter(k => seats[k] && devs[seats[k]] && devs[seats[k]].online);
+  for (const e of COORD) {
+    if (now < e.t - Banda.AVISO || now > e.t + Banda.VENTANA_GESTO + 1.6) continue;
+    if (e.tipo === 'entra') {
+      if (now < e.t + 0.6) { const d = devs[seats[e.k]]; letrero(e.texto, INFO[e.k].color, d ? `${d.name}, prepárate` : '', 0.7); }
+      continue;
+    }
+    const G = Banda.GESTOS[e.gesto];
+    if (now < e.t) { letrero(e.texto, '#e6ff3d', `${G.ayuda} · en ${Math.ceil(e.t - now)}…`); continue; }
+    if (now <= e.t + Banda.VENTANA_GESTO) { // se mide quién lo hace
+      e.ok ||= new Set();
+      for (const k of ocup) if (st[k].eb != null && G.ok(st[k].eb, st[k].eg)) e.ok.add(k);
+      letrero('¡AHORA!', '#e6ff3d', e.texto, 1.2); continue;
+    }
+    const n = ocup.length, ok = e.ok ? e.ok.size : 0; // resultado
+    if (!e.listo) {
+      e.listo = true;
+      if (n && ok === n) { for (const k of INSTRUMENTOS) { st[k].pulso = 1; st[k].brillo = 1; } feed('¡Banda sincronizada!', '#e6ff3d'); }
+      else if (n) feed(`Gesto: ${ok} de ${n} músicos`, '#ffb86b');
+    }
+    if (n) letrero(ok === n ? '¡SINCRONIZADOS!' : `${ok} de ${n} sincronizados`, ok === n ? '#e6ff3d' : '#ffb86b', ok === n ? '' : (INSTRUMENTOS.filter(k => ocup.includes(k) && !(e.ok && e.ok.has(k))).map(k => INFO[k].nombre).join(', ') + ' no lo hizo'), 0.9);
+  }
+}
+function hex(h, a) { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${clamp(a)})`; }
+
+function musico(k, t) {
+  const s = st[k], id = seats[k], d = devs[id], p = P(INFO[k].x, INFO[k].y);
+  const x = p.x, y = p.y - alzado(k), h = H * 0.24 * p.s, col = INFO[k].color;
+  const conectado = !!(d && d.online);
+  const bob = (Math.sin(t * 3.2 + x) * 0.006 + s.pulso * 0.025 + (s.ener || 0) * Math.abs(Math.sin(t * 7 + x)) * 0.02) * h;
+  c.save();
+  // el músico se inclina como su teléfono
+  s.vg = (s.vg || 0) + (((s.eg || 0) * 0.35) - (s.vg || 0)) * 0.2;
+  if (id && k !== 'bateria') { c.translate(x, y); c.rotate(s.vg); c.translate(-x, -y); }
+  if (!id) { c.globalAlpha = 0.35; instrumento(k, x, y, h, col, true); c.restore(); etiqueta(k, x, y, h, 'libre'); return; }
+  c.globalAlpha = conectado ? 1 : 0.35;
+  const sentado = k === 'bateria';
+  // cuerpo (silueta con borde de luz del color del instrumento)
+  c.fillStyle = '#1a1325'; c.strokeStyle = hex(col, 0.85); c.lineWidth = Math.max(1.5, h * 0.012);
+  const top = y - h * (sentado ? 0.72 : 0.92) + bob;
+  if (!sentado) { c.beginPath(); c.moveTo(x - h * 0.05, y); c.lineTo(x - h * 0.04, top + h * 0.48); c.moveTo(x + h * 0.05, y); c.lineTo(x + h * 0.04, top + h * 0.48); c.lineWidth = h * 0.05; c.strokeStyle = '#1a1325'; c.stroke(); c.lineWidth = Math.max(1.5, h * 0.012); c.strokeStyle = hex(col, 0.85); }
+  c.beginPath(); c.roundRect(x - h * 0.1, top + h * 0.13, h * 0.2, h * 0.38, h * 0.07); c.fill(); c.stroke();
+  c.beginPath(); c.arc(x, top + h * 0.06, h * 0.075, 0, 7); c.fill(); c.stroke();
+  instrumento(k, x, y + (sentado ? 0 : bob), h, col, false, t, s.pulso);
+  // manchas de tomate sobre el músico
+  for (const m of s.manchas) { const a = 1 - (t * 1000 - m.t0) / 9000; if (a > 0) mancha(x + m.dx * h, top + m.dy * h, h * 0.07, m.seed, a); }
+  s.manchas = s.manchas.filter(m => t * 1000 - m.t0 < 9000);
+  // brillo de las rosas
+  if (s.brillo > 0.01) { c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(x, top + h * 0.3, 0, x, top + h * 0.3, h * 0.7); g.addColorStop(0, `rgba(255,77,125,${s.brillo * 0.5})`); g.addColorStop(1, 'rgba(255,77,125,0)'); c.fillStyle = g; c.fillRect(x - h, top - h * 0.4, h * 2, h * 1.4); c.globalCompositeOperation = 'source-over'; }
+  // notas que salen al tocar
+  c.font = `${Math.round(h * 0.12)}px system-ui`; c.textAlign = 'center';
+  for (const n of s.notas) { const u = (t * 1000 - n.t0) / 1200; if (u < 1) { c.fillStyle = hex(col, 1 - u); c.fillText('♪', x + n.dx * h, top - u * h * 0.5); } }
+  c.restore();
+  etiqueta(k, x, y, h, conectado ? d.name : 'reconectando…');
+}
+function instrumento(k, x, y, h, col, solo, t = 0, pulso = 0) {
+  c.lineCap = 'round';
+  if (k === 'guitarra' || k === 'bajo') {
+    const bajo = k === 'bajo', cy = solo ? y - h * 0.3 : y - h * 0.42;
+    c.save(); c.translate(x + (solo ? 0 : h * 0.02), cy); c.rotate(solo ? -1.45 : -0.55 + pulso * 0.12);
+    c.strokeStyle = '#d9c9a8'; c.lineWidth = h * 0.022; c.beginPath(); c.moveTo(0, 0); c.lineTo(h * (bajo ? 0.42 : 0.34), 0); c.stroke();
+    c.fillStyle = col; c.beginPath(); c.ellipse(-h * 0.03, 0, h * (bajo ? 0.09 : 0.1), h * (bajo ? 0.065 : 0.075), 0, 0, 7); c.fill();
+    c.fillStyle = '#0a0710'; c.beginPath(); c.arc(-h * 0.01, 0, h * 0.018, 0, 7); c.fill();
+    c.fillStyle = '#d9c9a8'; c.fillRect(h * (bajo ? 0.41 : 0.33), -h * 0.025, h * 0.05, h * 0.05);
+    c.restore();
+    if (solo) { c.strokeStyle = '#3a3050'; c.lineWidth = 2; c.beginPath(); c.moveTo(x - h * 0.06, y); c.lineTo(x, y - h * 0.18); c.lineTo(x + h * 0.06, y); c.stroke(); }
+  } else if (k === 'bateria') {
+    const r = h * 0.13;
+    c.fillStyle = '#20182c'; c.strokeStyle = col; c.lineWidth = Math.max(1.5, h * 0.012);
+    c.beginPath(); c.arc(x, y - r, r, 0, 7); c.fill(); c.stroke(); // bombo
+    c.fillStyle = hex(col, 0.25 + pulso * 0.5); c.beginPath(); c.arc(x, y - r, r * 0.45, 0, 7); c.fill();
+    for (const sx of [-1, 1]) { // toms y platillos
+      c.fillStyle = '#20182c'; c.beginPath(); c.ellipse(x + sx * r * 1.25, y - r * 1.9, r * 0.45, r * 0.18, 0, 0, 7); c.fill(); c.stroke();
+      c.strokeStyle = '#c9a74a'; c.beginPath(); c.moveTo(x + sx * r * 1.6, y - r * 2.7 - (sx > 0 ? pulso * r * 0.3 : 0)); c.lineTo(x + sx * r * 2.6, y - r * 2.9 - (sx > 0 ? pulso * r * 0.3 : 0)); c.lineWidth = h * 0.015; c.stroke();
+      c.strokeStyle = col; c.lineWidth = Math.max(1.5, h * 0.012);
+    }
+  } else if (k === 'teclado') {
+    const w = h * 0.42, ky = y - h * 0.36;
+    c.strokeStyle = '#3a3050'; c.lineWidth = 2; c.beginPath(); c.moveTo(x - w * 0.35, y); c.lineTo(x + w * 0.35, ky); c.moveTo(x + w * 0.35, y); c.lineTo(x - w * 0.35, ky); c.stroke();
+    c.fillStyle = '#16111f'; c.fillRect(x - w / 2, ky - h * 0.06, w, h * 0.06);
+    c.fillStyle = '#ece8f5'; c.fillRect(x - w / 2 + 3, ky - h * 0.03, w - 6, h * 0.025);
+    c.fillStyle = '#0a0710'; for (let i = 1; i < 14; i++) if (i % 7 !== 3 && i % 7 !== 0) c.fillRect(x - w / 2 + 3 + ((w - 6) * i) / 14 - 1.5, ky - h * 0.03, 3, h * 0.014);
+    c.fillStyle = hex(col, 0.6 + pulso * 0.4); c.fillRect(x - w / 2, ky - h * 0.06, w, 3);
+  }
+}
+function etiqueta(k, x, y, h, txt) {
+  const s = st[k], col = INFO[k].color, fs = Math.max(11, Math.round(h * 0.075));
+  c.font = `600 ${fs}px system-ui`; c.textAlign = 'center';
+  const prec = CAN.partitura && s.intentos ? ` · ${Math.round((100 * (s.aciertos || 0)) / s.intentos)}%${s.racha >= 5 ? ` · racha ${s.racha}` : ''}` : '';
+  const linea = `${INFO[k].nombre} · ${txt}${seats[k] ? prec : ''}`, w =c.measureText(linea).width + fs * 1.4, ly = y + fs * 1.1;
+  c.fillStyle = 'rgba(10,7,16,.8)'; c.strokeStyle = hex(col, seats[k] ? 0.9 : 0.35); c.lineWidth = 1.5;
+  c.beginPath(); c.roundRect(x - w / 2, ly - fs * 0.85, w, fs * 1.5, fs); c.fill(); c.stroke();
+  c.fillStyle = seats[k] ? '#ece8f5' : '#9a93ae'; c.fillText(linea, x, ly + fs * 0.25);
+  if (seats[k] && (s.rosas || s.tomates)) {
+    const cy = ly + fs * 1.6; c.font = `700 ${fs}px system-ui`;
+    dibujarRosa(c, x - fs * 2.2, cy - fs * 0.35, fs * 0.42); c.fillStyle = '#ff4d7d'; c.fillText(s.rosas, x - fs * 1.1, cy);
+    dibujarTomate(c, x + fs * 0.9, cy - fs * 0.35, fs * 0.42); c.fillStyle = '#ff6b4a'; c.fillText(s.tomates, x + fs * 2, cy);
+  }
+}
+function mancha(x, y, r, seed, a) {
+  const R = rnd(seed); c.save(); c.globalAlpha = a; c.fillStyle = '#d42a17';
+  c.beginPath(); c.ellipse(x, y, r, r * 0.75, R() * 3, 0, 7); c.fill();
+  for (let i = 0; i < 7; i++) { const ang = R() * 6.28, d = r * (0.9 + R() * 0.9); c.beginPath(); c.arc(x + Math.cos(ang) * d, y + Math.sin(ang) * d * 0.7, r * (0.12 + R() * 0.22), 0, 7); c.fill(); }
+  c.fillStyle = '#f5d76e'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(x + (R() - 0.5) * r, y + (R() - 0.5) * r * 0.6, r * 0.08, r * 0.05, R() * 3, 0, 7); c.fill(); } // semillas
+  c.restore();
+}
+
+function publicoDibujo(t) {
+  const lista = publico(), n = Math.min(lista.length, 60), front = P(0, 1).y + H * 0.035;
+  if (!n) { c.fillStyle = 'rgba(154,147,174,.55)'; c.font = '600 16px system-ui'; c.textAlign = 'center'; c.fillText('Aquí aparece el público · escanea el QR para entrar', W / 2, front + (H - front) * 0.55); return; }
+  for (let i = 0; i < n; i++) {
+    const R = rnd(i * 7919 + 13); const fila = i % 3, x = W * (0.04 + 0.92 * ((i * 0.618 + R() * 0.2) % 1)), y = front + (H - front) * (0.35 + fila * 0.28), s = H * (0.028 + fila * 0.006);
+    const salto = Math.max(0, Math.sin(t * 4 + i)) * s * 0.15;
+    c.fillStyle = '#0b0812'; c.strokeStyle = 'rgba(139,92,246,.35)'; c.lineWidth = 1.2;
+    c.beginPath(); c.ellipse(x, y + s * 1.25 - salto, s * 1.15, s * 0.8, 0, Math.PI, 0); c.fill(); c.stroke();
+    c.beginPath(); c.arc(x, y - salto, s * 0.55, 0, 7); c.fill(); c.stroke();
+  }
+}
+
+function vuelos(t) {
+  const now = t * 1000;
+  for (let i = proyectiles.length - 1; i >= 0; i--) {
+    const q = proyectiles[i], u = (now - q.t0) / q.dur;
+    if (u >= 1) continue;
+    const e = u, px = q.o.x + (q.x - q.o.x) * e, py = q.o.y + (q.y - q.o.y) * e, p = P(px, py);
+    const lift = Math.sin(Math.PI * u) * H * (0.2 + 0.14 * q.f), r = H * 0.026 * p.s * (1 + Math.sin(Math.PI * u) * 0.5);
+    (q.tipo === 'rosa' ? dibujarRosa : dibujarTomate)(c, p.x, p.y - lift - (objetivo(q.x, q.y) === 'bateria' ? alzado('bateria') * u : 0), r, q.rot + q.giro * u);
+  }
+  for (let i = marcas.length - 1; i >= 0; i--) { // lo que quedó en el piso
+    const m = marcas[i], a = 1 - (now - m.t0) / m.vida; if (a <= 0) { marcas.splice(i, 1); continue; }
+    const p = P(m.x, m.y);
+    if (m.tipo === 'tomate') mancha(p.x, p.y, H * 0.02 * p.s, m.seed, a);
+    else dibujarRosa(c, p.x, p.y, H * 0.016 * p.s, 1.4, a);
+  }
+  for (let i = petalos.length - 1; i >= 0; i--) {
+    const q = petalos[i]; q.vy += 0.25; q.x += q.vx; q.y += q.vy; q.vida -= 1;
+    if (q.vida <= 0) { petalos.splice(i, 1); continue; }
+    c.fillStyle = `rgba(${q.tom ? '212,42,23' : '255,77,125'},${q.vida / 50})`; c.beginPath(); c.ellipse(q.x, q.y, q.r, q.r * 0.6, q.vida * 0.2, 0, 7); c.fill();
+  }
+}
+function impacto(q, now) {
+  const k = objetivo(q.x, q.y), p = P(q.x, q.y), py = p.y - (k === 'bateria' ? alzado(k) : 0), tom = q.tipo === 'tomate';
+  for (let i = 0; i < (tom ? 14 : 10); i++) petalos.push({ x: p.x, y: py - H * 0.05 * p.s, vx: (Math.random() - 0.5) * 7, vy: -Math.random() * 6, r: H * 0.006 * (tom ? 1 : 1.4), vida: 50, tom });
+  const nombre = q.de.name;
+  if (k && seats[k]) {
+    const s = st[k], h = H * 0.24 * P(INFO[k].x, INFO[k].y).s;
+    if (tom) { s.tomates++; s.manchas.push({ dx: (Math.random() - 0.5) * 0.25, dy: Math.random() * 0.5, t0: now, seed: (Math.random() * 1e6) | 1 }); }
+    else { s.rosas++; s.brillo = 1; }
+    const d = devs[seats[k]];
+    feed(`${nombre} ${tom ? 'le tiró un tomate' : 'le lanzó una rosa'} a ${d ? d.name : INFO[k].nombre} (${INFO[k].nombre.toLowerCase()})`, tom ? '#ff6b4a' : '#ff4d7d');
+    pub(TOP.dev(seats[k], 'impacto'), { tipo: q.tipo, de: nombre });
+    void h;
+  } else {
+    marcas.push({ tipo: q.tipo, x: q.x, y: q.y, t0: now, vida: tom ? 9000 : 12000, seed: (Math.random() * 1e6) | 1 });
+  }
+  pub(TOP.dev(q.de.id, 'resultado'), { tipo: q.tipo, a: k && seats[k] ? k : null });
+}
+const pub = (topic, obj) => client && client.connected && client.publish(topic, JSON.stringify(obj));
+
+(function loop(now) {
+  const t = now / 1000;
+  c.clearRect(0, 0, W, H);
+  const ocupados = Object.fromEntries(INSTRUMENTOS.map(k => [k, !!(seats[k] && devs[seats[k]] && devs[seats[k]].online)]));
+  CAN.mezclar(ocupados);
+  for (const k of INSTRUMENTOS) { // con canción: la luz de cada músico sigue a su instrumento en la grabación
+    const e = CAN.energia(k), cerrada = CAN.sonando && CAN.banda && CAN.escuchar === 'todo' && ocupados[k] && !CAN.abierta(k);
+    st[k].ener = (st[k].ener || 0) + ((cerrada ? e * 0.15 : e) - (st[k].ener || 0)) * 0.35;
+  }
+  fondo(t); piso(); luces(t); armonia();
+  const orden = [...INSTRUMENTOS].sort((a, b) => INFO[a].y - INFO[b].y); // primero los del fondo
+  for (const k of orden) musico(k, t);
+  publicoDibujo(t); vuelos(t); dibujarFlotantes(now); avisos();
+  for (const k of INSTRUMENTOS) { st[k].pulso *= 0.9; st[k].brillo *= 0.97; st[k].falla = (st[k].falla || 0) * 0.93; }
+  requestAnimationFrame(loop);
+})(performance.now());
+
+renderPanel();
+conectar().catch(e => { const m = e.message || 'sin conexión'; $('#estado').textContent = '● ' + m; $('#estado').className = 'dot warn'; $('#url').textContent = m; });
+window.__banda = { devs, seats, st, publico, liberar, reiniciar }; // para depurar desde la consola
+</script>
+</body>
+</html>

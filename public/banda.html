@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<meta name="theme-color" content="#0a0710">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Tacto · banda</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  html, body { font-size: 16px; overscroll-behavior: none; user-select: none; -webkit-user-select: none; overflow: hidden; }
+  body { display: flex; flex-direction: column; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); gap: 10px; }
+  input { width: 100%; min-height: 48px; padding: 12px 14px; border-radius: var(--r-m); user-select: text; -webkit-user-select: text; font-size: 16px; }
+  button { min-height: 48px; border-radius: var(--r-m); font-weight: 600; }
+  label { font-size: 13px; font-weight: 500; }
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  #join { margin: auto 0; max-width: 460px; width: 100%; align-self: center; flex: none; gap: 12px; }
+  #join .field { display: flex; flex-direction: column; gap: 6px; }
+  #join .note { color: var(--mut); font-size: 13px; line-height: 1.5; }
+  #bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; color: var(--mut); flex: none; }
+  #yo { min-height: 30px; padding: 2px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #yo::after { content: " ✎"; color: var(--mut); }
+  #st { font-weight: 600; } #st.on { color: var(--ok); } #st.warn { color: var(--warn); }
+  #espera { justify-content: center; align-items: center; text-align: center; color: var(--mut); }
+  #espera b { color: var(--fg); font-size: 18px; }
+  /* músico */
+  #musico .rol { border-radius: var(--r-l); padding: 14px 16px; background: var(--card); border: 1px solid var(--rol, var(--line)); box-shadow: inset 0 0 40px -10px var(--rol); }
+  #musico .rol small { color: var(--mut); display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  #musico .rol b { font-size: 30px; color: var(--rol); }
+  #pads { position: relative; flex: 1; min-height: 0; touch-action: none; border-radius: var(--r-l); overflow: hidden; border: 1px solid var(--line-2); background: #0d0915; }
+  #pista { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #aviso { position: absolute; left: 8px; right: 8px; top: 18%; text-align: center; background: rgba(10,7,16,.85); border: 2px solid var(--neo); border-radius: var(--r-l); padding: 14px 10px; pointer-events: none; }
+  #aviso b { display: block; font-size: 24px; font-weight: 900; color: var(--neo); line-height: 1.15; }
+  #aviso span { display: block; margin-top: 6px; font-size: 14px; color: var(--fg); }
+  #musico .rol { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #marcador { text-align: right; font: 600 13px var(--mono); color: var(--fg); white-space: pre; }
+  .pad { border-radius: var(--r-l); border: 1px solid var(--line-2); background: var(--card); display: grid; place-items: center; font-weight: 700; color: var(--mut); font-size: 18px; transition: background 60ms, transform 60ms; }
+  .pad.on { background: var(--rol); color: #0a0710; transform: scale(.97); }
+  #musico .note { color: var(--mut); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+  #mov { flex: none; min-height: 44px; }
+  #mov.on { border-color: var(--rol); color: var(--rol); }
+  .pad small { display: block; font-size: 12px; font-weight: 500; opacity: .7; margin-top: 2px; }
+  /* público */
+  #mini { width: 100%; flex: 0 0 38%; min-height: 0; border-radius: var(--r-l); border: 1px solid var(--line); background: #0d0915; display: block; }
+  #tiro { position: relative; flex: 1; min-height: 0; touch-action: none; border-radius: var(--r-l); overflow: hidden; border: 1px solid var(--line-2); }
+  #tiroCv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #res { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: rgba(10,7,16,.85); border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 14px; white-space: nowrap; opacity: 0; transition: opacity 250ms; pointer-events: none; }
+  #res.on { opacity: 1; }
+  /* impacto sobre el músico */
+  #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 600ms; display: grid; place-items: center; font-size: 22px; font-weight: 800; text-align: center; padding: 24px; text-shadow: 0 2px 6px #000; z-index: 5; }
+  #flash.on { opacity: 1; transition: none; }
+  #flash.tomate { background: radial-gradient(circle at 50% 45%, rgba(212,42,23,.85), rgba(120,10,5,.6) 60%, transparent 85%); }
+  #flash.rosa { background: radial-gradient(circle at 50% 45%, rgba(255,77,125,.75), rgba(160,20,80,.4) 60%, transparent 85%); }
+</style>
+</head>
+<body>
+  <div id="join" class="view card">
+    <h1>TACTO <span>· banda</span></h1>
+    <div class="field"><label for="name">Tu nombre</label><input id="name" autocomplete="off" autocapitalize="off" maxlength="24" placeholder="ej: ana"></div>
+    <div class="field"><label for="sala">Sala (la muestra la pantalla)</label><input id="sala" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="24" placeholder="ej: k7m2xq"></div>
+    <button id="go" class="primary">Entrar</button>
+    <div class="msg" id="err" role="alert"></div>
+    <div class="note">Los 4 primeros en entrar tocan un instrumento. El resto es público y puede lanzar rosas o tomates a la banda. Deja la pantalla encendida.</div>
+  </div>
+
+  <div id="bar" hidden><span id="st" role="status" aria-live="polite">Conectando…</span><button id="yo" type="button" title="Cambiar tu nombre" aria-label="Cambiar tu nombre">–</button><span id="info"></span></div>
+
+  <div id="espera" class="view" hidden><b>Buscando tu lugar…</b><span>Esperando a la pantalla de la tarima.</span></div>
+
+  <div id="musico" class="view" hidden>
+    <div class="rol"><div><small>Tu instrumento</small><b id="rolTxt">–</b></div><div id="marcador" aria-live="polite"></div></div>
+    <button id="mov" type="button">Activar movimiento (para los gestos)</button>
+    <div id="pads" aria-label="Partitura: toca cada carril cuando la nota llegue a la línea"><canvas id="pista"></canvas><div id="aviso" hidden></div></div>
+    <div class="note" id="movTxt">Toca el carril cuando la nota llegue a la línea. Si fallas, tu instrumento se calla en la banda.</div>
+  </div>
+
+  <div id="publico" class="view" hidden>
+    <canvas id="mini" aria-label="La tarima: hacia dónde apuntas" role="img"></canvas>
+    <div id="tiro"><canvas id="tiroCv" aria-label="Desliza hacia arriba: a la izquierda una rosa, a la derecha un tomate" role="img"></canvas><div id="res" role="status" aria-live="polite"></div></div>
+  </div>
+
+  <div id="flash" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="tacto.js"></script>
+<script src="banda-comun.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const { INSTRUMENTOS, INFO, COOLDOWN, ORIGEN, proyectar, objetivo, aterrizaje, dibujarTomate, dibujarRosa, clamp } = Banda;
+const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
+const ss = (k, v) => { try { if (v === undefined) return sessionStorage.getItem(k); sessionStorage.setItem(k, v); } catch {} return null; };
+const vibrar = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} }; // Android sí; iPhone no lo permite desde la web
+
+const Q = new URLSearchParams(location.search);
+$('#name').value = Q.get('name') || ls('tacto.name') || '';
+$('#sala').value = Tacto.clean(Q.get('sala')) || Tacto.clean(ls('tacto.sala')) || '';
+// identificador por pestaña: sobrevive a recargar (para recuperar el instrumento) y permite probar con varias pestañas
+const dev = Tacto.clean(Q.get('dev')) || ss('banda.dev') || (ss('banda.dev', Tacto.rand(6)), ss('banda.dev')) || Tacto.rand(6);
+
+let client = null, sala = '', name = '', TOP = null, roles = {}, miRol = null, vista = '';
+const pub = (topic, obj, o = {}) => client && client.connected && client.publish(topic, JSON.stringify(obj), o);
+
+function mostrar(v) {
+  if (v === vista) return; vista = v;
+  for (const id of ['espera', 'musico', 'publico']) $('#' + id).hidden = id !== v;
+  if (v === 'publico') fitPublico();
+  if (v === 'musico') fitPista();
+}
+
+// ============================ CONEXIÓN ============================
+async function conectar() {
+  TOP = Banda.temas(sala);
+  const status = online => ({ online, name, app: 'banda' });
+  const o = await Tacto.open({ clientId: 'ban-' + dev, preferLocal: true, will: { topic: TOP.dev(dev, 'status'), payload: JSON.stringify(status(false)), qos: 1, retain: true } });
+  client = o.client;
+  $('#info').textContent = `sala ${sala}`;
+  client.on('connect', () => {
+    $('#st').textContent = '● conectado'; $('#st').className = 'on';
+    client.subscribe([TOP.roles, TOP.show, TOP.dev(dev, 'impacto'), TOP.dev(dev, 'resultado'), TOP.dev(dev, 'reloj')], { qos: 1 });
+    pub(TOP.dev(dev, 'status'), status(true), { qos: 1, retain: true });
+    for (let i = 0; i < 6; i++) setTimeout(sincronizar, 300 + i * 250); // primeras mediciones del reloj, seguidas
+  });
+  setInterval(sincronizar, 2000);
+  // latido: al recargar, el "último testamento" de la conexión anterior puede llegar después del "online" nuevo;
+  // repetir el estado cada 8 s lo corrige antes de que el escenario libere el instrumento (gracia de 15 s)
+  setInterval(() => pub(TOP.dev(dev, 'status'), status(true), { qos: 1, retain: true }), 8000);
+  client.on('reconnect', () => { $('#st').textContent = 'Reconectando…'; $('#st').className = 'warn'; });
+  client.on('offline', () => { $('#st').textContent = 'Sin conexión'; $('#st').className = 'warn'; });
+  client.on('error', e => { $('#err').textContent = 'MQTT: ' + (e.message || e); });
+  client.on('message', (topic, payload) => {
+    let m; try { m = JSON.parse(payload.toString()); } catch { return; }
+    if (topic === TOP.roles) onRoles(m);
+    else if (topic === TOP.show) onShow(m);
+    else if (topic.endsWith('/reloj')) onReloj(m);
+    else if (topic.endsWith('/impacto')) onImpacto(m);
+    else if (topic.endsWith('/resultado')) onResultado(m);
+  });
+}
+function onRoles(m) {
+  roles = m.roles || {};
+  const k = INSTRUMENTOS.find(i => roles[i] && roles[i].id === dev) || null;
+  if (k) { if (miRol !== k) { miRol = k; armarMusico(k); vibrar([30, 60, 30]); } mostrar('musico'); }
+  else if ((m.publico || []).includes(dev)) { miRol = null; mostrar('publico'); }
+  else mostrar('espera');
+}
+
+// ============================ MÚSICO ============================
+const CARRILES = { // nombre de cada carril (de izquierda a derecha: de grave a agudo)
+  guitarra: ['grave', 'medio', 'agudo', 'muy agudo'], bajo: ['grave', 'medio', 'agudo', 'muy agudo'],
+  bateria: ['bombo', 'caja', 'hi-hat', 'platillo'], teclado: ['grave', 'medio', 'agudo', 'muy agudo'],
+};
+function armarMusico(k) {
+  document.body.style.setProperty('--rol', INFO[k].color);
+  $('#rolTxt').textContent = INFO[k].nombre;
+  prepararNotas(); fitPista();
+}
+
+// ============================ PARTITURA ============================
+// El teléfono sabe en qué segundo va la canción (reloj sincronizado con la pantalla), dibuja las notas que vienen
+// y juzga cada toque aquí mismo; a la pantalla solo le dice "acerté", "fallé" o "se me pasó".
+let show = { cancion: null, sonando: false, inicio: 0, pos: 0 }, part = null, partNombre = '', notas = [], coord = [];
+let offset = 0, mejorRtt = 1e9, racha = 0, aciertos = 0, intentos = 0, mejorRacha = 0;
+const LOOK = 1.7, LINEA = 0.8; // segundos de notas visibles · altura de la línea (fracción del alto)
+const fx = [], carrilOn = [0, 0, 0, 0];
+const tCancion = () => (show.sonando ? (Date.now() + offset - show.inicio) / 1000 : show.pos || 0);
+function sincronizar() { if (client && client.connected) pub(TOP.dev(dev, 'sync'), { a: Date.now() }); }
+function onReloj(m) { // como NTP: se queda con la medición de ida y vuelta más rápida
+  const ahora = Date.now(), rtt = ahora - m.a; mejorRtt *= 1.05;
+  if (rtt <= mejorRtt) { mejorRtt = rtt; offset = m.b - (m.a + ahora) / 2; }
+}
+function onShow(m) {
+  const salto = m.sonando !== show.sonando || Math.abs((m.inicio || 0) - (show.inicio || 0)) > 400;
+  show = m;
+  if (m.cancion && m.cancion !== partNombre) cargarPartitura(m.cancion);
+  if (salto) { const t = tCancion(); for (const n of notas) if (n.t > t - 0.2) n.e = 0; if (m.sonando && t < 1) { racha = aciertos = intentos = mejorRacha = 0; for (const e of coord) { e.ok = false; e.listo = false; } } }
+}
+async function cargarPartitura(n) {
+  partNombre = n;
+  try { part = await (await fetch(`canciones/${encodeURIComponent(n)}/partitura.json`, { cache: 'no-store' })).json(); coord = Banda.coordinacion(part); prepararNotas(); }
+  catch { part = null; }
+}
+function prepararNotas() { notas = part && miRol ? Banda.notasPara(part, miRol).map(n => ({ ...n, e: 0 })) : []; } // e: 0 pendiente · 1 acertada · 2 perdida
+
+const pista = $('#pista'), pc = pista.getContext('2d'); let PW = 0, PH = 0;
+function fitPista() { const d = devicePixelRatio || 1, r = $('#pads').getBoundingClientRect(); PW = r.width; PH = r.height; pista.width = PW * d; pista.height = PH * d; pc.setTransform(d, 0, 0, d, 0, 0); }
+addEventListener('resize', () => vista === 'musico' && fitPista());
+const jugando = () => !!(part && show.sonando && notas.length);
+
+function marcar(z, txt, color) { fx.push({ z, txt, color, t0: performance.now() }); if (fx.length > 12) fx.shift(); }
+function tocarCarril(z) {
+  carrilOn[z] = 1;
+  if (!jugando()) { pub(TOP.dev(dev, 'golpe'), { z }); vibrar(12); return; } // sin canción: toca libre
+  const t = tCancion(); let mejor = null, md = Banda.VENTANA.bien;
+  for (const n of notas) { if (n.t > t + md) break; if (n.e || n.z !== z) continue; const d = Math.abs(n.t - t); if (d <= md) { md = d; mejor = n; } }
+  intentos++;
+  if (mejor) {
+    mejor.e = 1; aciertos++; racha++; mejorRacha = Math.max(mejorRacha, racha);
+    const r = md <= Banda.VENTANA.perfecto ? 'perfecto' : 'bien';
+    marcar(z, r === 'perfecto' ? '¡Perfecto!' : 'Bien', r === 'perfecto' ? '#e6ff3d' : '#ece8f5');
+    pub(TOP.dev(dev, 'golpe'), { z, r, racha }); vibrar(10);
+  } else {
+    racha = 0; marcar(z, '✗', '#ff6b6b');
+    pub(TOP.dev(dev, 'golpe'), { z, r: 'falla' }); vibrar([30, 30, 30]);
+  }
+}
+function revisarPerdidas() { // notas que pasaron la línea sin tocarse
+  if (!jugando()) return;
+  const t = tCancion(); let perdida = null;
+  for (const n of notas) { if (n.t > t - Banda.VENTANA.bien) break; if (n.e === 0) { n.e = 2; intentos++; racha = 0; perdida = n; } }
+  if (perdida) { marcar(perdida.z, 'se pasó', '#ff6b6b'); pub(TOP.dev(dev, 'golpe'), { z: perdida.z, r: 'perdida' }); }
+}
+$('#pads').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = pista.getBoundingClientRect(); tocarCarril(Math.max(0, Math.min(3, Math.floor(((e.clientX - r.left) / r.width) * 4))));
+});
+
+function dibujarPista(now) {
+  const c = pc, t = tCancion(), col = INFO[miRol] ? INFO[miRol].color : '#e6ff3d', cw = PW / 4, ly = PH * LINEA;
+  c.clearRect(0, 0, PW, PH);
+  for (let z = 0; z < 4; z++) { // carriles
+    c.fillStyle = z % 2 ? 'rgba(255,255,255,.025)' : 'rgba(255,255,255,.05)'; c.fillRect(z * cw, 0, cw, PH);
+    if (carrilOn[z] > 0.02) { c.fillStyle = `rgba(255,255,255,${carrilOn[z] * 0.18})`; c.fillRect(z * cw, 0, cw, PH); carrilOn[z] *= 0.85; }
+    c.fillStyle = '#9a93ae'; c.font = '600 12px system-ui'; c.textAlign = 'center';
+    c.fillText((CARRILES[miRol] || [])[z] || '', z * cw + cw / 2, PH - 12);
+  }
+  c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.moveTo(0, ly); c.lineTo(PW, ly); c.stroke(); // línea de golpe
+  for (let z = 0; z < 4; z++) { c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2; c.beginPath(); c.arc(z * cw + cw / 2, ly, Math.min(cw * 0.32, 26), 0, 7); c.stroke(); }
+  if (jugando() || (part && t > -5 && show.sonando)) {
+    for (const n of notas) { // notas que vienen
+      if (n.t < t - 0.4) continue; if (n.t > t + LOOK) break; if (n.e === 1) continue;
+      const y = ly - ((n.t - t) / LOOK) * ly, x = n.z * cw + cw / 2, r = Math.min(cw * 0.3, 24);
+      c.fillStyle = n.e === 2 ? 'rgba(154,147,174,.35)' : col; c.beginPath(); c.roundRect(x - r, y - r * 0.45, r * 2, r * 0.9, r * 0.45); c.fill();
+    }
+    const prox = notas.find(n => n.t > t); // tu instrumento no suena por un rato: que se entienda que no es un error
+    if (t >= 0 && (!prox || prox.t - t > 4)) {
+      c.fillStyle = '#9a93ae'; c.textAlign = 'center'; c.font = '700 18px system-ui'; c.fillText('Tu instrumento descansa', PW / 2, PH * 0.36);
+      c.font = '500 14px system-ui'; c.fillText(prox ? `vuelves en ${Math.ceil(prox.t - t)} s` : 'terminaste tu parte', PW / 2, PH * 0.36 + 24);
+    }
+  } else {
+    c.fillStyle = '#9a93ae'; c.font = '500 14px system-ui'; c.textAlign = 'center';
+    c.fillText(part ? 'Esperando que empiece la canción…' : 'Sin canción: toca libre', PW / 2, PH * 0.4);
+  }
+  for (let i = fx.length - 1; i >= 0; i--) { // ¡Perfecto! / ✗
+    const f = fx[i], u = (now - f.t0) / 600; if (u >= 1) { fx.splice(i, 1); continue; }
+    c.globalAlpha = 1 - u; c.fillStyle = f.color; c.font = '800 16px system-ui'; c.textAlign = 'center';
+    c.fillText(f.txt, f.z * cw + cw / 2, ly - 34 - u * 24); c.globalAlpha = 1;
+  }
+  $('#marcador').textContent = intentos ? `racha ${racha}\n${Math.round((100 * aciertos) / intentos)}% acierto` : '';
+}
+
+// avisos: cuenta regresiva, gestos de la banda y "¡entras!"
+function dibujarAviso() {
+  const el = $('#aviso'), t = tCancion();
+  let html = '';
+  if (part && show.sonando && t < 0) html = `<b>${Math.ceil(-t)}</b><span>prepárate, la banda empieza</span>`;
+  else if (part && show.sonando) for (const e of coord) {
+    if (t < e.t - Banda.AVISO || t > e.t + Banda.VENTANA_GESTO + 1.5) continue;
+    if (e.tipo === 'entra') { if (e.k === miRol && t < e.t + 0.5) html = `<b>¡Entras tú!</b><span>${t < e.t ? 'en ' + Math.ceil(e.t - t) + '…' : '¡ahora!'}</span>`; continue; }
+    const G = Banda.GESTOS[e.gesto];
+    if (t < e.t) html = `<b>${e.texto}</b><span>${G.ayuda} · en ${Math.ceil(e.t - t)}…${movOn ? '' : '<br>(activa el movimiento arriba)'}</span>`;
+    else if (t <= e.t + Banda.VENTANA_GESTO) { if (movOn && G.ok(eb / 45, eg / 45)) e.ok = true; html = `<b>¡AHORA!</b><span>${G.ayuda}${e.ok ? ' · ✓' : ''}</span>`; }
+    else { if (!e.listo) { e.listo = true; vibrar(e.ok ? 40 : [60, 40, 60]); } html = e.ok ? '<b>✓ ¡Bien!</b><span>lo hiciste a tiempo</span>' : '<b style="color:#ff6b6b">✗ No lo hiciste</b><span>la banda se desincronizó</span>'; }
+  }
+  if (el.innerHTML !== html) el.innerHTML = html;
+  el.hidden = !html;
+}
+
+// ---------- movimiento: inclinar el teléfono = expresión (se mide desde la posición en que lo activas) ----------
+let movOn = false, b0 = null, g0 = null, eb = 0, eg = 0, movTimer = null;
+const MOV_AYUDA = { guitarra: 'Levanta el mástil (inclina hacia atrás) = más brillo · a los lados = dobla la nota', bajo: 'Inclina adelante/atrás = wah', bateria: 'Inclina adelante/atrás = más o menos sala', teclado: 'A los lados = dobla la nota · adelante/atrás = brillo' };
+$('#mov').onclick = async () => {
+  if (movOn) { b0 = null; $('#movTxt').textContent = 'Posición recalibrada. ' + (MOV_AYUDA[miRol] || ''); return; } // tocar de nuevo = recalibrar
+  try {
+    const R = window.DeviceOrientationEvent; // en iPhone un solo permiso cubre orientación y movimiento; debe pedirse directo desde el toque
+    if (R && typeof R.requestPermission === 'function' && (await R.requestPermission()) !== 'granted') throw new Error('Permiso de movimiento denegado. En iPhone: cierra Safari por completo y vuelve a entrar.');
+    if (!window.isSecureContext) throw new Error('El movimiento necesita HTTPS.');
+    addEventListener('deviceorientation', e => {
+      if (e.beta == null) return;
+      if (b0 == null) { b0 = e.beta; g0 = e.gamma; }
+      eb = b0 - e.beta; eg = e.gamma - g0; // eb > 0: la parte de arriba del teléfono se inclina hacia ti (mástil arriba)
+    });
+    movOn = true; $('#mov').classList.add('on'); $('#mov').textContent = 'Movimiento activo · tocar para recalibrar';
+    $('#movTxt').textContent = MOV_AYUDA[miRol] || '';
+    movTimer = setInterval(() => { if (miRol && b0 != null) pub(TOP.dev(dev, 'expresion'), { b: Math.round(eb), g: Math.round(eg) }); }, 50);
+  } catch (e) { $('#movTxt').textContent = e.message || String(e); }
+};
+let flashT;
+function onImpacto(m) {
+  const f = $('#flash'), tom = m.tipo === 'tomate';
+  f.className = 'on ' + (tom ? 'tomate' : 'rosa');
+  f.textContent = tom ? `¡${m.de || 'Alguien'} te tiró un tomate!` : `¡${m.de || 'Alguien'} te lanzó una rosa!`;
+  vibrar(tom ? [80, 40, 80] : 40);
+  clearTimeout(flashT); flashT = setTimeout(() => { f.className = tom ? 'tomate' : 'rosa'; }, 500);
+}
+
+// ============================ PÚBLICO ============================
+const mini = $('#mini'), mc = mini.getContext('2d'), tiro = $('#tiro'), tcv = $('#tiroCv'), tc = tiro && tcv.getContext('2d');
+let MW = 0, MH = 0, TW = 0, TH = 0, MR = null;
+function fitPublico() {
+  const d = devicePixelRatio || 1;
+  let r = mini.getBoundingClientRect(); MW = r.width; MH = r.height; mini.width = MW * d; mini.height = MH * d; mc.setTransform(d, 0, 0, d, 0, 0);
+  MR = { cx: MW / 2, top: MH * 0.16, w: MW * 0.9, h: MH * 0.56 };
+  r = tiro.getBoundingClientRect(); TW = r.width; TH = r.height; tcv.width = TW * d; tcv.height = TH * d; tc.setTransform(d, 0, 0, d, 0, 0);
+}
+addEventListener('resize', () => vista === 'publico' && fitPublico());
+
+let gesto = null, ultimoTiro = -1e9, vuelo = null, resT;
+const enEspera = () => performance.now() - ultimoTiro < COOLDOWN;
+const casa = tipo => ({ x: TW * (tipo === 'rosa' ? 0.25 : 0.75), y: TH * 0.62 });
+function velocidad(g) { // px/ms con los últimos ~100 ms del gesto
+  const h = g.h, last = h[h.length - 1]; let first = h[0];
+  for (const q of h) if (last.t - q.t <= 100) { first = q; break; }
+  const dt = Math.max(16, last.t - first.t);
+  return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+}
+function prediccion(g) {
+  const { vx, vy } = velocidad(g), sp = Math.hypot(vx, vy);
+  if (vy > -0.25) return null; // no va hacia arriba
+  const f = clamp((sp - 0.3) / 2.4); // ajustar con teléfonos reales: un deslizamiento normal ronda 1–3 px/ms
+  return { ...aterrizaje(g.tipo, vx, vy, f), f, v: sp };
+}
+tiro.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (enEspera()) { vibrar(20); return; }
+  const r = tiro.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  try { tiro.setPointerCapture(e.pointerId); } catch {}
+  gesto = { id: e.pointerId, tipo: x < TW / 2 ? 'rosa' : 'tomate', x, y, y0: y, h: [{ x, y, t: performance.now() }] };
+});
+tiro.addEventListener('pointermove', e => {
+  if (!gesto || e.pointerId !== gesto.id) return;
+  const r = tiro.getBoundingClientRect(); gesto.x = e.clientX - r.left; gesto.y = e.clientY - r.top;
+  gesto.h.push({ x: gesto.x, y: gesto.y, t: performance.now() }); if (gesto.h.length > 30) gesto.h.shift();
+});
+const soltar = e => {
+  if (!gesto || e.pointerId !== gesto.id) return;
+  const g = gesto; gesto = null;
+  const p = prediccion(g);
+  if (!p || g.y0 - g.y < 30) return; // no fue un lanzamiento: vuelve a su lugar
+  ultimoTiro = performance.now();
+  pub(TOP.dev(dev, 'lanzar'), { tipo: g.tipo, x: +p.x.toFixed(3), y: +p.y.toFixed(3), f: +p.f.toFixed(2), v: +p.v.toFixed(2) }, { qos: 1 }); // v: velocidad del gesto (px/ms), para calibrar
+  vuelo = { tipo: g.tipo, x: p.x, y: p.y, f: p.f, t0: performance.now() };
+  vibrar(25);
+};
+tiro.addEventListener('pointerup', soltar); tiro.addEventListener('pointercancel', soltar);
+function onResultado(m) {
+  const k = m.a, el = $('#res');
+  el.textContent = k ? `¡Le diste a ${(roles[k] && roles[k].name) || INFO[k].nombre}! (${INFO[k].nombre.toLowerCase()})` : 'Cayó en la tarima';
+  el.style.borderColor = k ? INFO[k].color : 'var(--line-2)';
+  el.classList.add('on'); clearTimeout(resT); resT = setTimeout(() => el.classList.remove('on'), 2200);
+}
+
+function dibujarMini(now) {
+  const c = mc, P = (x, y) => proyectar(x, y, MR);
+  c.clearRect(0, 0, MW, MH);
+  const a = P(0, 0), b = P(1, 0), cc = P(1, 1), d = P(0, 1);
+  c.fillStyle = '#2a1d14'; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(cc.x, cc.y); c.lineTo(d.x, d.y); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(230,255,61,.35)'; c.fillRect(d.x, d.y, cc.x - d.x, 2);
+  const pred = gesto && prediccion(gesto), apunta = pred ? objetivo(pred.x, pred.y) : null;
+  for (const k of [...INSTRUMENTOS].sort((p, q) => INFO[p].y - INFO[q].y)) {
+    const p = P(INFO[k].x, INFO[k].y), r = MH * 0.075 * p.s, on = !!roles[k];
+    c.globalAlpha = on ? 1 : 0.35;
+    c.fillStyle = INFO[k].color; c.beginPath(); c.arc(p.x, p.y - r, r, 0, 7); c.fill();
+    if (apunta === k) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(p.x, p.y - r, r + 5, 0, 7); c.stroke(); }
+    c.fillStyle = '#ece8f5'; c.font = `600 ${Math.max(10, Math.round(MH * 0.06))}px system-ui`; c.textAlign = 'center';
+    c.fillText(on ? roles[k].name || INFO[k].nombre : INFO[k].nombre, p.x, p.y + MH * 0.07);
+    c.globalAlpha = 1;
+  }
+  // de dónde salen: rosas a la izquierda, tomates a la derecha
+  for (const tipo of ['rosa', 'tomate']) { const o = P(ORIGEN[tipo].x, 1.18); (tipo === 'rosa' ? dibujarRosa : dibujarTomate)(mc, o.x, Math.min(o.y, MH - 12), 7, 0, 0.8); }
+  if (pred) { // trayectoria prevista mientras deslizas
+    const o = P(ORIGEN[gesto.tipo].x, 1.18), t = P(pred.x, pred.y);
+    c.setLineDash([5, 5]); c.strokeStyle = gesto.tipo === 'rosa' ? '#ff4d7d' : '#ff6b4a'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(o.x, Math.min(o.y, MH - 12)); c.quadraticCurveTo((o.x + t.x) / 2, Math.min(o.y, t.y) - MH * 0.3, t.x, t.y); c.stroke(); c.setLineDash([]);
+    c.beginPath(); c.ellipse(t.x, t.y, 8, 4, 0, 0, 7); c.stroke();
+  }
+  if (vuelo) {
+    const u = (now - vuelo.t0) / 800;
+    if (u >= 1) vuelo = null;
+    else { const o = ORIGEN[vuelo.tipo], p = P(o.x + (vuelo.x - o.x) * u, 1.18 + (vuelo.y - 1.18) * u); (vuelo.tipo === 'rosa' ? dibujarRosa : dibujarTomate)(c, p.x, Math.min(p.y, MH - 12) - Math.sin(Math.PI * u) * MH * 0.3, 8, u * 8); }
+  }
+}
+function dibujarTiro(now) {
+  const c = tc; c.clearRect(0, 0, TW, TH);
+  const espera = enEspera(), resto = Math.max(0, COOLDOWN - (now - ultimoTiro));
+  for (const tipo of ['rosa', 'tomate']) {
+    const x0 = tipo === 'rosa' ? 0 : TW / 2;
+    const g = c.createLinearGradient(0, TH, 0, 0); g.addColorStop(0, tipo === 'rosa' ? 'rgba(255,77,125,.28)' : 'rgba(232,50,30,.28)'); g.addColorStop(1, 'rgba(10,7,16,0)');
+    c.fillStyle = g; c.fillRect(x0, 0, TW / 2, TH);
+    c.fillStyle = espera ? '#9a93ae' : '#ece8f5'; c.font = `700 ${Math.round(Math.min(TW, TH) * 0.065)}px system-ui`; c.textAlign = 'center';
+    c.fillText(tipo === 'rosa' ? 'ROSA' : 'TOMATE', x0 + TW / 4, TH * 0.2);
+    c.font = `500 ${Math.round(Math.min(TW, TH) * 0.042)}px system-ui`; c.fillStyle = '#9a93ae';
+    c.fillText(tipo === 'rosa' ? 'me gusta' : 'abucheo', x0 + TW / 4, TH * 0.2 + Math.min(TW, TH) * 0.07);
+    if (!(gesto && gesto.tipo === tipo)) { const h = casa(tipo); (tipo === 'rosa' ? dibujarRosa : dibujarTomate)(c, h.x, h.y, Math.min(TW, TH) * 0.1, 0, espera ? 0.3 : 1); }
+  }
+  c.strokeStyle = 'rgba(255,255,255,.08)'; c.beginPath(); c.moveTo(TW / 2, 16); c.lineTo(TW / 2, TH - 16); c.stroke();
+  if (gesto) (gesto.tipo === 'rosa' ? dibujarRosa : dibujarTomate)(c, gesto.x, gesto.y, Math.min(TW, TH) * 0.11, (gesto.x - casa(gesto.tipo).x) * 0.01);
+  if (espera) { // espera entre lanzamientos
+    const cx = TW / 2, cy = TH * 0.86, r = Math.min(TW, TH) * 0.07;
+    c.strokeStyle = '#2b2338'; c.lineWidth = 5; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.stroke();
+    c.strokeStyle = '#e6ff3d'; c.beginPath(); c.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (1 - resto / COOLDOWN) * Math.PI * 2); c.stroke();
+    c.fillStyle = '#ece8f5'; c.font = `700 ${Math.round(r * 0.8)}px system-ui`; c.textAlign = 'center'; c.fillText(Math.ceil(resto / 1000), cx, cy + r * 0.28);
+  } else { c.fillStyle = '#9a93ae'; c.font = `500 ${Math.round(Math.min(TW, TH) * 0.042)}px system-ui`; c.textAlign = 'center'; c.fillText('desliza hacia arriba para lanzar', TW / 2, TH * 0.92); }
+}
+(function loop(now) {
+  if (vista === 'publico' && MR) { dibujarMini(now); dibujarTiro(now); }
+  if (vista === 'musico' && PW) { revisarPerdidas(); dibujarPista(now); dibujarAviso(); }
+  requestAnimationFrame(loop);
+})(performance.now());
+
+// ============================ ENTRAR ============================
+async function wake() { try { await navigator.wakeLock?.request('screen'); } catch {} }
+['gesturestart', 'gesturechange'].forEach(n => document.addEventListener(n, e => e.preventDefault()));
+// nombre automático para entrar sin escribir nada (se puede cambiar tocando el nombre arriba)
+const nombreAzar = () => {
+  const A = ['Llama', 'Puma', 'Cóndor', 'Zorro', 'Huemul', 'Pudú', 'Loro', 'Gato', 'Tiburón', 'Pulpo', 'Colibrí', 'Lobo'];
+  const B = ['Eléctrico', 'Azul', 'Salvaje', 'Cósmico', 'Veloz', 'Dorado', 'Nocturno', 'Rockero', 'Feroz', 'Brillante'];
+  const r = Tacto.rand(2); return `${A[r.charCodeAt(0) % A.length]} ${B[r.charCodeAt(1) % B.length]}`;
+};
+function entrar() {
+  name = $('#name').value.trim().slice(0, 24) || nombreAzar(); sala = Tacto.clean($('#sala').value);
+  if (sala.length < 4) { $('#err').textContent = 'Escribe la sala que muestra la pantalla (mínimo 4 caracteres).'; return; }
+  ls('tacto.name', name); ls('tacto.sala', sala); $('#yo').textContent = name;
+  $('#join').hidden = true; $('#bar').hidden = false; mostrar('espera'); wake();
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
+  conectar().catch(e => { $('#st').textContent = 'No se pudo conectar'; $('#err').textContent = e.message || String(e); $('#join').hidden = false; });
+}
+$('#go').onclick = entrar;
+$('#yo').onclick = () => { // cambiar el nombre sin salir
+  const n = (prompt('Tu nombre', name) || '').trim().slice(0, 24); if (!n || n === name) return;
+  name = n; ls('tacto.name', n); $('#yo').textContent = n;
+  pub(TOP.dev(dev, 'status'), { online: true, name, app: 'banda' }, { qos: 1, retain: true });
+};
+// con el QR de la pantalla (trae ?sala=) se entra directo, sin formulario
+if (Tacto.clean(Q.get('sala')).length >= 4) entrar();
+</script>
+</body>
+</html>
